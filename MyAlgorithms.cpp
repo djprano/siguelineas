@@ -248,30 +248,36 @@ void Api::RunNavigationAlgorithm() {
 		}
 	}
 	
-	//pinto los valores medios
-		valorMedio1=valorMedio1/acumulador1;
-		valorMedio2=valorMedio2/acumulador2;
-		valorMedio3=valorMedio3/acumulador3;
-		
-		src.imageData[(FILA1*src.width+valorMedio1)*src.nChannels]=0;
-		src.imageData[(FILA1*src.width+valorMedio1)*src.nChannels+1]=0;
-		src.imageData[(FILA1*src.width+valorMedio1)*src.nChannels+2]=0;
-		
-		src.imageData[(FILA2*src.width+valorMedio2)*src.nChannels]=0;
-		src.imageData[(FILA2*src.width+valorMedio2)*src.nChannels+1]=0;
-		src.imageData[(FILA2*src.width+valorMedio2)*src.nChannels+2]=0;
-		
-		src.imageData[(FILA3*src.width+valorMedio3)*src.nChannels]=0;
-		src.imageData[(FILA3*src.width+valorMedio3)*src.nChannels+1]=0;
-		src.imageData[(FILA3*src.width+valorMedio3)*src.nChannels+2]=0;
+		//pinto los valores medios
+		if(acumulador1!=0){
+			valorMedio1=valorMedio1/acumulador1;
+			src.imageData[(FILA1*src.width+valorMedio1)*src.nChannels]=0;
+			src.imageData[(FILA1*src.width+valorMedio1)*src.nChannels+1]=0;
+			src.imageData[(FILA1*src.width+valorMedio1)*src.nChannels+2]=0;
+		}
+		if (acumulador2!=0){
+			valorMedio2=valorMedio2/acumulador2;
+			src.imageData[(FILA2*src.width+valorMedio2)*src.nChannels]=0;
+			src.imageData[(FILA2*src.width+valorMedio2)*src.nChannels+1]=0;
+			src.imageData[(FILA2*src.width+valorMedio2)*src.nChannels+2]=0;
+
+		}
+		if (acumulador3!=0){
+			valorMedio3=valorMedio3/acumulador3;
+			src.imageData[(FILA3*src.width+valorMedio3)*src.nChannels]=0;
+			src.imageData[(FILA3*src.width+valorMedio3)*src.nChannels+1]=0;
+			src.imageData[(FILA3*src.width+valorMedio3)*src.nChannels+2]=0;
+		}
+
 		
 	//calculamos el error para la toma de decisión
 		
 		error1 = (src.width/2)-valorMedio1;
 		printf("Error1 px: %i v1:%i v2:%i v3:%i\n",error1,valorMedio1,valorMedio2,valorMedio3);
+		int velocidad = 60 - abs(error1)/4;
 
-		this->setMotorV(8);
-		this->setMotorW(error1*0.03);
+		this->setMotorV(velocidad);
+		this->setMotorW(error1*0.05);
 
 	
 //calculo iteraciones por segundo	
@@ -298,10 +304,10 @@ void Api::RunNavigationAlgorithm() {
 //Aqui tomamos el valor de los sensores para alojarlo en nuestras variables locales
 	laser = getLaserData(); // Get the laser info
 	encoders = this->getEncodersData();
-	printf("%d -- %d -- %d Estado: %i iteraciones/sec: %i rgb: %i-%i-%i\n",
+	printf("%d -- %d -- %d Estado: %i iteraciones/sec: %i rgb: %i-%i-%i velocidad: %i \n",
 			laser->distanceData[174], laser->distanceData[90],
 			laser->distanceData[5],estado, iteraciones_sec,(int) (unsigned char) src.imageData[((src.height-1) * src.width + (src.width/2))* src.nChannels],(int) (unsigned char) src.imageData[((src.height-1) * src.width + (src.width/2))* src.nChannels+1],
-			(int) (unsigned char) src.imageData[((src.height-1) * src.width + (src.width/2))* src.nChannels+2]);
+			(int) (unsigned char) src.imageData[((src.height-1) * src.width + (src.width/2))* src.nChannels+2],velocidad);
 
 	v = this->getMotorV();
 	w = this->getMotorW();

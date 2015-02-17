@@ -27,8 +27,9 @@
 
 //Constantes
 const int FILA1 = 470;
-const int FILA2 = 450;
-const int FILA3 = 430;
+const int FILA2 = 385;
+const int FILA3 = 320;
+const int L_FILTRO = 318;
 
 /*
  INTROROB API:
@@ -147,7 +148,7 @@ const int FILA3 = 430;
  **** PARA MAS INFO ACCEDER AL FICHERO API.CPP y API.H ****
 
  */
-int estado = 0;
+int estado = 4;
 int gradosagirar = 0;
 int gradosallegar = 0;
 int iteraciones = 0;
@@ -156,6 +157,9 @@ struct timeval start;
 struct timeval end;
 struct timeval t;
 struct timeval t2;
+int lastError[3];
+int n_fren;
+int estado2_estable;
 
 namespace introrob {
 
@@ -196,9 +200,11 @@ void Api::RunNavigationAlgorithm() {
 	int valorMedio2 = 0;
 	int valorMedio3 = 0;
 	int error1 = 0;
+	int error2 = 0;
+	int error3 = 0;
 
 	//filtro de linea y pinto lineas de referencia
-	for (j = src.height*2/3; j < src.height; j++) {
+	for (j = L_FILTRO ; j < src.height; j++) {
 		for (i = 0; i < src.width; i++) {
 			if (((int) (unsigned char) src.imageData[(j * src.width + i)* src.nChannels] > 45)
 					&& ((int) (unsigned char) src.imageData[(j * src.width + i)* src.nChannels + 1] < 25)
@@ -273,11 +279,112 @@ void Api::RunNavigationAlgorithm() {
 	//calculamos el error para la toma de decisión
 		
 		error1 = (src.width/2)-valorMedio1;
-		printf("Error1 px: %i v1:%i v2:%i v3:%i\n",error1,valorMedio1,valorMedio2,valorMedio3);
-		int velocidad = 60 - abs(error1)/4;
+		error2 = (src.width/2)-valorMedio2;
+		error3 = (src.width/2)-valorMedio3;
+		// int velocidad = 60 - abs(error1)/4;
 
-		this->setMotorV(velocidad);
-		this->setMotorW(error1*0.05);
+
+	//MAQUINA DE ESTADOS
+	switch (estado){
+		
+		//Velocidad maxima con correccion de volante suave
+		case 0:
+			this->setMotorV(80);
+			//this->setMotorW(error1*0.009);
+			this->setMotorW(error3*0.01);
+			if(acumulador1==0 && acumulador2==0 && acumulador3==0){
+				estado=4;
+			}else if(abs(error3)>140){
+				estado=1;
+				n_fren=0;
+			}
+			break;
+		//1 frenar con correcion de volante suave
+		case 1:
+			this->setMotorV(1);
+			
+			if(acumulador2!=0){
+				this->setMotorW(error2);
+			}else{
+				this->setMotorW(error1*0.7);
+			}
+			if(n_fren>4){
+				estado=3;
+			}else{
+				n_fren++;
+			}
+			break;
+		//2 curva rapida velocidad media con corrección de volante más dura
+		case 2:
+			this->setMotorV(50);
+			this->setMotorW(error2*0.023);
+			if(acumulador1==0 && acumulador2==0 && acumulador3==0){
+				estado=4;
+				estado2_estable=0;
+			}else if(abs(error3)>150){
+				estado=3;
+				estado2_estable=0;
+			}else if (abs(error2)<25 && abs(error3)<70 && abs(error1)<20){
+				if(estado2_estable>4){
+					estado=0;
+					estado2_estable=0;
+				}else{
+					estado2_estable++;
+				}
+				
+			}else{
+				estado2_estable=0;
+			}
+			break;
+		//3 curva lenta  velocidad baja
+		case 3:
+			this->setMotorV(30);
+			if(acumulador3!=0){
+				this->setMotorW(error3*0.025);
+			}else if(acumulador2!=0){
+				this->setMotorW(error2*0.045);
+			}else{
+				this->setMotorW(error1*0.03);
+			}
+			
+			if(abs(error2)<45 && abs(error3)<150){
+				estado=2;
+			}else if(acumulador1==0 && acumulador2==0 && acumulador3==0){
+				estado=4;
+			}
+			break;
+		//4 recuperar, se salió del circuito
+		case 4:
+			this->setMotorV(0);
+			if(lastError[2]!=0){
+				this->setMotorW(lastError[2]*0.017);
+			}else{
+				this->setMotorW(8);
+			}
+			
+			if (acumulador3!=0){
+				estado=5;
+			}
+		break;
+		//5 andar hasta el circuito
+		case 5:
+			this->setMotorV(20);
+			this->setMotorW(lastError[2]*0.011);
+			if (acumulador2!=0){
+				estado=2;
+			}
+		break;
+
+	}
+	if(acumulador1!=0){
+		lastError[0]=error1;
+	}
+	if(acumulador2!=0){
+		lastError[1]=error2;
+	}
+	if(acumulador3!=0){
+		lastError[2]=error3;
+	}
 
 	
 //calculo iteraciones por segundo	
@@ -304,10 +411,13 @@ void Api::RunNavigationAlgorithm() {
 //Aqui tomamos el valor de los sensores para alojarlo en nuestras variables locales
 	laser = getLaserData(); // Get the laser info
 	encoders = this->getEncodersData();
-	printf("%d -- %d -- %d Estado: %i iteraciones/sec: %i rgb: %i-%i-%i velocidad: %i \n",
-			laser->distanceData[174], laser->distanceData[90],
-			laser->distanceData[5],estado, iteraciones_sec,(int) (unsigned char) src.imageData[((src.height-1) * src.width + (src.width/2))* src.nChannels],(int) (unsigned char) src.imageData[((src.height-1) * src.width + (src.width/2))* src.nChannels+1],
-			(int) (unsigned char) src.imageData[((src.height-1) * src.width + (src.width/2))* src.nChannels+2],velocidad);
+	// printf("%d -- %d -- %d Estado: %i iteraciones/sec: %i rgb: %i-%i-%i velocidad: %i \n",
+	// 		laser->distanceData[174], laser->distanceData[90],
+	// 		laser->distanceData[5],estado, iteraciones_sec,(int) (unsigned char) src.imageData[((src.height-1) * src.width + (src.width/2))* src.nChannels],(int) (unsigned char) src.imageData[((src.height-1) * src.width + (src.width/2))* src.nChannels+1],
+	// 		(int) (unsigned char) src.imageData[((src.height-1) * src.width + (src.width/2))* src.nChannels+2],velocidad);
+	printf("Estado: %i iteraciones/sec: %i rgb: %i-%i-%i ",estado, iteraciones_sec,(int) (unsigned char) src.imageData[((src.height-1) * src.width + (src.width/2))* src.nChannels],(int) (unsigned char) src.imageData[((src.height-1) * src.width + (src.width/2))* src.nChannels+1],
+			(int) (unsigned char) src.imageData[((src.height-1) * src.width + (src.width/2))* src.nChannels+2]);
+	printf("Error1: %i Error2: %i Error3: %i estado2_estable:%i\n",error1,error2,error3,estado2_estable);
 
 	v = this->getMotorV();
 	w = this->getMotorW();
@@ -318,49 +428,7 @@ void Api::RunNavigationAlgorithm() {
 //printf("destPoint = [%f, %f]\n", dest.x, dest.y);
 
 //printf("myPosition = [%f, %f]\n", encoders->robotx, encoders->roboty);
-	/* FIN TOMA DE SENSORES */
-//	switch (estado) {
-//	case 0:        //el robot anda hacia delante
-//
-//		if (laser->distanceData[90] < 1500 or laser->distanceData[5] < 500
-//				or laser->distanceData[174] < 500) {
-//			this->setMotorV(0);
-//			this->setMotorW(0);
-//			gettimeofday(&start, NULL);
-//			estado = 1;
-//			break;
-//		} else {
-//			this->setMotorV(5);
-//			this->setMotorW(0);
-//		}
-//		break;
-//	case 1: //retrocedemos 2 segundos
-//		gettimeofday(&end, NULL);
-//		if (end.tv_sec - start.tv_sec < 2) {
-//			this->setMotorV(-10);
-//			break;
-//		} else {
-//			gradosagirar = rand() % 360;
-//			gradosallegar = (gradosagirar + (int) encoders->robottheta) % 360;
-//			estado = 2;
-//			break;
-//		}
-//
-//	case 2:        //detectamos pared
-//
-//		if (encoders->robottheta > gradosallegar - 2
-//				and encoders->robottheta < gradosallegar + 2) {
-//			estado = 0;
-//			break;
-//
-//		} else {
-//			this->setMotorV(0);
-//			this->setMotorW(5);
-//			printf("girar hasta:%i \n", gradosallegar);
-//
-//		}
-//		break;
-//	}
+
 
 	/*
 	 switch(accion){

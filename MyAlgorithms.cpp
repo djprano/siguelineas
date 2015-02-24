@@ -26,10 +26,10 @@
 
 
 //Constantes
-const int FILA1 = 470;
-const int FILA2 = 385;
-const int FILA3 = 320;
-const int L_FILTRO = 318;
+const int FILA1 = 478;
+const int FILA2 = 382;
+const int FILA3 = 323;
+const int L_FILTRO = 320;
 
 /*
  INTROROB API:
@@ -289,7 +289,7 @@ void Api::RunNavigationAlgorithm() {
 		
 		//Velocidad maxima con correccion de volante suave
 		case 0:
-			this->setMotorV(80);
+			this->setMotorV(85);
 			//this->setMotorW(error1*0.009);
 			this->setMotorW(error3*0.01);
 			if(acumulador1==0 && acumulador2==0 && acumulador3==0){
@@ -325,7 +325,7 @@ void Api::RunNavigationAlgorithm() {
 				estado=3;
 				estado2_estable=0;
 			}else if (abs(error2)<25 && abs(error3)<70 && abs(error1)<20){
-				if(estado2_estable>4){
+				if(estado2_estable>3){
 					estado=0;
 					estado2_estable=0;
 				}else{
@@ -342,7 +342,7 @@ void Api::RunNavigationAlgorithm() {
 			if(acumulador3!=0){
 				this->setMotorW(error3*0.025);
 			}else if(acumulador2!=0){
-				this->setMotorW(error2*0.045);
+				this->setMotorW(error2*0.048);
 			}else{
 				this->setMotorW(error1*0.03);
 			}
@@ -362,7 +362,7 @@ void Api::RunNavigationAlgorithm() {
 				this->setMotorW(8);
 			}
 			
-			if (acumulador3!=0){
+			if (acumulador3!=0 || acumulador2!=0 || acumulador1 !=0){
 				estado=5;
 			}
 		break;

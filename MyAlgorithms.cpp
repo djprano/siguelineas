@@ -27,9 +27,8 @@
 
 //Constantes
 const int FILA1 = 478;
-const int FILA2 = 382;
-const int FILA3 = 323;
-const int L_FILTRO = 320;
+
+const int GIRO_RECUPERACION = 8;
 
 /*
  INTROROB API:
@@ -148,6 +147,10 @@ const int L_FILTRO = 320;
  **** PARA MAS INFO ACCEDER AL FICHERO API.CPP y API.H ****
 
  */
+int FILA3 = 320;
+int L_FILTRO = 320;
+int FILA2 = 382;
+
 int estado = 4;
 int gradosagirar = 0;
 int gradosallegar = 0;
@@ -281,51 +284,65 @@ void Api::RunNavigationAlgorithm() {
 		error1 = (src.width/2)-valorMedio1;
 		error2 = (src.width/2)-valorMedio2;
 		error3 = (src.width/2)-valorMedio3;
-		// int velocidad = 60 - abs(error1)/4;
-
-
+	
 	//MAQUINA DE ESTADOS
 	switch (estado){
 		
 		//Velocidad maxima con correccion de volante suave
 		case 0:
-			this->setMotorV(85);
-			//this->setMotorW(error1*0.009);
-			this->setMotorW(error3*0.01);
+			L_FILTRO = 295;
+			FILA3 = L_FILTRO;
+			FILA2 =350;
+			this->setMotorV(130);
+			this->setMotorW(error2*0.007);
 			if(acumulador1==0 && acumulador2==0 && acumulador3==0){
 				estado=4;
-			}else if(abs(error3)>140){
+			}else if(abs(error3)>100||error2>100){
 				estado=1;
 				n_fren=0;
 			}
 			break;
-		//1 frenar con correcion de volante suave
+		//1 frenar con correcion de volante fuerte
 		case 1:
+			FILA2=400;
+			L_FILTRO = 370;
+			FILA3=L_FILTRO;
 			this->setMotorV(1);
-			
-			if(acumulador2!=0){
-				this->setMotorW(error2);
-			}else{
-				this->setMotorW(error1*0.7);
+			if(acumulador3!=0){
+				this->setMotorW(error3*1.5);
+			}else if(acumulador2!=0){
+				this->setMotorW(error2*1.5);
 			}
-			if(n_fren>4){
-				estado=3;
+
+			if(n_fren>3){
+				if (acumulador1!=0 && acumulador2!=0&&acumulador3!=0){
+					estado=4;
+				}else{
+					estado=3;
+				}
+				
 			}else{
 				n_fren++;
 			}
 			break;
 		//2 curva rapida velocidad media con corrección de volante más dura
 		case 2:
-			this->setMotorV(50);
-			this->setMotorW(error2*0.023);
+			FILA2=392;
+			L_FILTRO = 325;
+			FILA3=L_FILTRO;
+			this->setMotorV(65);
+			if(acumulador2!=0){
+				this->setMotorW(error2*0.02);
+			}
+			
 			if(acumulador1==0 && acumulador2==0 && acumulador3==0){
 				estado=4;
 				estado2_estable=0;
 			}else if(abs(error3)>150){
 				estado=3;
 				estado2_estable=0;
-			}else if (abs(error2)<25 && abs(error3)<70 && abs(error1)<20){
-				if(estado2_estable>3){
+			}else if (abs(error2)<30 && abs(error3)<55 && abs(error1)<30){
+				if(estado2_estable>5){
 					estado=0;
 					estado2_estable=0;
 				}else{
@@ -338,40 +355,49 @@ void Api::RunNavigationAlgorithm() {
 			break;
 		//3 curva lenta  velocidad baja
 		case 3:
-			this->setMotorV(30);
+			FILA2=392;
+			L_FILTRO = 360;
+			FILA3=L_FILTRO;
+			this->setMotorV(48);
 			if(acumulador3!=0){
-				this->setMotorW(error3*0.025);
+				this->setMotorW(error3*0.045);
 			}else if(acumulador2!=0){
-				this->setMotorW(error2*0.048);
+				this->setMotorW(error2*0.036);
+			}else if(acumulador1!=0){
+				this->setMotorW(error1*0.029);
 			}else{
-				this->setMotorW(error1*0.03);
+				estado=4;
 			}
 			
-			if(abs(error2)<45 && abs(error3)<150){
+			if(abs(error2)<80 && abs(error3)<180){
 				estado=2;
-			}else if(acumulador1==0 && acumulador2==0 && acumulador3==0){
-				estado=4;
 			}
 			break;
 		//4 recuperar, se salió del circuito
 		case 4:
-			this->setMotorV(0);
-			if(lastError[2]!=0){
-				this->setMotorW(lastError[2]*0.017);
-			}else{
-				this->setMotorW(8);
+			L_FILTRO = 340;
+			FILA3 = L_FILTRO;
+			this->setMotorV(2);
+			if(lastError[1]!=0){
+				if(lastError[1]>0){
+					this->setMotorW(GIRO_RECUPERACION);
+				}else{
+					this->setMotorW(-GIRO_RECUPERACION);
+				}
+				
 			}
-			
-			if (acumulador3!=0 || acumulador2!=0 || acumulador1 !=0){
+			if (acumulador3!=0){
 				estado=5;
 			}
 		break;
 		//5 andar hasta el circuito
 		case 5:
-			this->setMotorV(20);
-			this->setMotorW(lastError[2]*0.011);
+			this->setMotorV(15);
+
+			this->setMotorW(error3*0.024);
+			
 			if (acumulador2!=0){
-				estado=2;
+				estado=3;
 			}
 		break;
 
@@ -417,7 +443,7 @@ void Api::RunNavigationAlgorithm() {
 	// 		(int) (unsigned char) src.imageData[((src.height-1) * src.width + (src.width/2))* src.nChannels+2],velocidad);
 	printf("Estado: %i iteraciones/sec: %i rgb: %i-%i-%i ",estado, iteraciones_sec,(int) (unsigned char) src.imageData[((src.height-1) * src.width + (src.width/2))* src.nChannels],(int) (unsigned char) src.imageData[((src.height-1) * src.width + (src.width/2))* src.nChannels+1],
 			(int) (unsigned char) src.imageData[((src.height-1) * src.width + (src.width/2))* src.nChannels+2]);
-	printf("Error1: %i Error2: %i Error3: %i estado2_estable:%i\n",error1,error2,error3,estado2_estable);
+	printf("Error1: %i Error2: %i Error3: %i lastError:%i MotorW:%g \n",error1,error2,error3,lastError[2],-getMotorW());
 
 	v = this->getMotorV();
 	w = this->getMotorW();
